@@ -1,5 +1,7 @@
-use axum::{Json, response::IntoResponse, Router, routing::post, extract::State};
-use mongodb::{Client, Database, bson::Document};
+mod db;
+
+use axum::{Json, response::IntoResponse, Router, routing::post, extract::State, http::{header, StatusCode}};
+use mongodb::{Client, Database};
 use serde::Deserialize;
 
 #[tokio::main]
@@ -25,15 +27,31 @@ async fn main() -> anyhow::Result<()> {
 #[derive(Deserialize)]
 struct QuotePost {
     pub content: String,
-    pub tags: Vec<String>,
+    pub tags: Option<Vec<String>>,
     pub author_id: Option<String>,
 }
 
+// TODO: Some validations
 async fn create_quote(
     State(database): State<Database>,
-    Json(payload): Json<QuotePost>,
+    Json(QuotePost { content, tags, author_id }): Json<QuotePost>,
 ) -> impl IntoResponse {
-    let collection = database.collection::<Document>("quotes");
+    let collection = database.collection::<db::Quote>("quotes");
+    
+    let document = db::Quote {
+        content,
+        author_id,
+        tags: tags.unwrap_or_else(|| vec![]),
+    };
+    // TODO: No unwrap
+    let res = collection.insert_one(document, None).await.unwrap();
 
-    ""
+
+    // TODO: Can I avoid the to_string?
+    (
+        StatusCode::CREATED,
+        [
+            (header::LOCATION, res.inserted_id.to_string())
+        ]
+    )
 }
