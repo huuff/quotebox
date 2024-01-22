@@ -50,12 +50,7 @@ async fn create_quote(
     };
 
     if let Bson::ObjectId(inserted_id) = collection.insert_one(document, None).await?.inserted_id {
-        Ok((
-            StatusCode::CREATED,
-            [
-                (header::LOCATION, inserted_id.to_hex())
-            ]
-        ).into_response())
+        Ok((StatusCode::CREATED, [(header::LOCATION, inserted_id.to_hex())]).into_response())
     } else {
         Ok((StatusCode::INTERNAL_SERVER_ERROR).into_response())
     }
@@ -74,18 +69,19 @@ async fn get_all_quotes(
     let collection = database.collection::<db::Quote>("quotes");
 
     // TODO: Can I just map as I retrieve instead of collecting before mapping?
-    let response: Vec<db::Quote> = collection.find(doc!{}, None).await?
+    let documents: Vec<db::Quote> = collection.find(doc!{}, None).await?
         .try_collect()
         .await?
         ;
 
-    Ok(
-        Json(
-            response.into_iter()
-                .map(|db::Quote { content, tags, author_id }| QuoteGetResponse {
-                content, tags, author_id 
-                })
-                .collect_vec()
-        )
-    )
+    let response = documents.into_iter()
+        .map(|db::Quote { content, tags, author_id }|
+        QuoteGetResponse {
+            content, tags, author_id 
+        })
+        .collect_vec()
+        ;
+
+
+    Ok(Json(response))
 }
