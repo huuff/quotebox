@@ -65,6 +65,17 @@ struct QuoteGetResponse {
     pub author_id: Option<String>,
 }
 
+impl From<db::Quote> for QuoteGetResponse {
+    fn from(value: db::Quote) -> Self {
+        Self {
+            id: value._id.unwrap().to_hex(),
+            content: value.content,
+            tags: value.tags,
+            author_id: value.author_id,
+        }
+    }
+}
+
 async fn get_all_quotes(
     State(database): State<Database>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -77,11 +88,7 @@ async fn get_all_quotes(
         ;
 
     let response = documents.into_iter()
-        .map(|db::Quote { _id, content, tags, author_id, .. }|
-        QuoteGetResponse {
-            id: _id.unwrap().to_hex(),
-            content, tags, author_id 
-        })
+        .map(|it| QuoteGetResponse::from(it))
         .collect_vec()
         ;
 
