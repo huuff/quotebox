@@ -1,6 +1,8 @@
 mod db;
+mod error;
 
 use axum::{Json, response::IntoResponse, Router, routing::post, extract::State, http::{header, StatusCode}};
+use error::AppError;
 use mongodb::{Client, Database};
 use serde::Deserialize;
 
@@ -35,7 +37,7 @@ struct QuotePost {
 async fn create_quote(
     State(database): State<Database>,
     Json(QuotePost { content, tags, author_id }): Json<QuotePost>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, AppError> {
     let collection = database.collection::<db::Quote>("quotes");
     
     let document = db::Quote {
@@ -43,15 +45,15 @@ async fn create_quote(
         author_id,
         tags: tags.unwrap_or_else(|| vec![]),
     };
-    // TODO: No unwrap
-    let res = collection.insert_one(document, None).await.unwrap();
+    let res = collection.insert_one(document, None).await?;
 
 
     // TODO: Can I avoid the to_string?
-    (
+    // TODO: Send the actual id
+    Ok((
         StatusCode::CREATED,
         [
             (header::LOCATION, res.inserted_id.to_string())
         ]
-    )
+    ))
 }
