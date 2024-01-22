@@ -36,21 +36,27 @@ struct QuotePost {
     pub author_id: Option<String>,
 }
 
+impl Into<db::Quote> for QuotePost {
+    fn into(self) -> db::Quote {
+        db::Quote {
+            _id: None,
+            content: self.content,
+            tags: self.tags.unwrap_or_else(|| vec![]),
+            author_id: self.author_id,
+        }
+    }
+}
+
 // TODO: Some validations
 async fn create_quote(
     State(database): State<Database>,
-    Json(QuotePost { content, tags, author_id }): Json<QuotePost>,
+    Json(quote): Json<QuotePost>,
 ) -> Result<impl IntoResponse, AppError> {
     let collection = database.collection::<db::Quote>("quotes");
-    
-    let document = db::Quote {
-        _id: None,
-        content,
-        author_id,
-        tags: tags.unwrap_or_else(|| vec![]),
-    };
 
-    if let Bson::ObjectId(inserted_id) = collection.insert_one(document, None).await?.inserted_id {
+    let quote: db::Quote = quote.into();
+    
+    if let Bson::ObjectId(inserted_id) = collection.insert_one(quote, None).await?.inserted_id {
         Ok((StatusCode::CREATED, [(header::LOCATION, inserted_id.to_hex())]).into_response())
     } else {
         Ok((StatusCode::INTERNAL_SERVER_ERROR).into_response())
