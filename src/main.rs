@@ -1,10 +1,12 @@
 mod db;
 mod error;
 
-use axum::{Json, response::IntoResponse, Router, routing::post, extract::State, http::{header, StatusCode}};
+use itertools::Itertools as _;
+use axum::{Json, response::IntoResponse, Router, routing::{post, get}, extract::State, http::{header, StatusCode}};
 use error::AppError;
-use mongodb::{Client, Database, bson::Bson};
-use serde::Deserialize;
+use futures::TryStreamExt;
+use mongodb::{Client, Database, bson::{Bson, doc}};
+use serde::{Deserialize, Serialize};
 use std::str;
 
 #[tokio::main]
@@ -16,6 +18,7 @@ async fn main() -> anyhow::Result<()> {
     
     let app = Router::new()
         .route("/quotes", post(create_quote))
+        .route("/quotes", get(get_all_quotes))
         .with_state(database)
         ;
 
@@ -56,6 +59,33 @@ async fn create_quote(
     } else {
         Ok((StatusCode::INTERNAL_SERVER_ERROR).into_response())
     }
+}
 
+#[derive(Serialize)]
+struct QuoteGetResponse {
+    pub content: String,
+    pub tags: Vec<String>,
+    pub author_id: Option<String>,
+}
 
+async fn get_all_quotes(
+    State(database): State<Database>,
+) -> Result<impl IntoResponse, AppError> {
+    let collection = database.collection::<db::Quote>("quotes");
+
+    // TODO: Can I just map as I retrieve instead of collecting before mapping?
+    let response: Vec<db::Quote> = collection.find(doc!{}, None).await?
+        .try_collect()
+        .await?
+        ;
+
+    Ok(
+        Json(
+            response.into_iter()
+                .map(|db::Quote { content, tags, author_id }| QuoteGetResponse {
+                content, tags, author_id 
+                })
+                .collect_vec()
+        )
+    )
 }
