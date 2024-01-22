@@ -4,6 +4,7 @@ pub struct AppError(anyhow::Error);
 // TODO: Log the error?
 impl axum::response::IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
+        eprintln!("{:#?}", self.0);
         (
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
             "Something went wrong",

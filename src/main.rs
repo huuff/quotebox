@@ -44,6 +44,7 @@ async fn create_quote(
     let collection = database.collection::<db::Quote>("quotes");
     
     let document = db::Quote {
+        _id: None,
         content,
         author_id,
         tags: tags.unwrap_or_else(|| vec![]),
@@ -58,6 +59,7 @@ async fn create_quote(
 
 #[derive(Serialize)]
 struct QuoteGetResponse {
+    pub id: String,
     pub content: String,
     pub tags: Vec<String>,
     pub author_id: Option<String>,
@@ -75,8 +77,9 @@ async fn get_all_quotes(
         ;
 
     let response = documents.into_iter()
-        .map(|db::Quote { content, tags, author_id }|
+        .map(|db::Quote { _id, content, tags, author_id, .. }|
         QuoteGetResponse {
+            id: _id.unwrap().to_hex(),
             content, tags, author_id 
         })
         .collect_vec()
