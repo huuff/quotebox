@@ -3,8 +3,9 @@ mod error;
 
 use axum::{Json, response::IntoResponse, Router, routing::post, extract::State, http::{header, StatusCode}};
 use error::AppError;
-use mongodb::{Client, Database};
+use mongodb::{Client, Database, bson::Bson};
 use serde::Deserialize;
+use std::str;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -14,10 +15,9 @@ async fn main() -> anyhow::Result<()> {
     let database = client.database("quotebox");
     
     let app = Router::new()
-        .route(
-            "/",
-            post(create_quote),
-        ).with_state(database);
+        .route("/quotes", post(create_quote))
+        .with_state(database)
+        ;
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
 
@@ -45,15 +45,17 @@ async fn create_quote(
         author_id,
         tags: tags.unwrap_or_else(|| vec![]),
     };
-    let res = collection.insert_one(document, None).await?;
+
+    if let Bson::ObjectId(inserted_id) = collection.insert_one(document, None).await?.inserted_id {
+        Ok((
+            StatusCode::CREATED,
+            [
+                (header::LOCATION, inserted_id.to_hex())
+            ]
+        ).into_response())
+    } else {
+        Ok((StatusCode::INTERNAL_SERVER_ERROR).into_response())
+    }
 
 
-    // TODO: Can I avoid the to_string?
-    // TODO: Send the actual id
-    Ok((
-        StatusCode::CREATED,
-        [
-            (header::LOCATION, res.inserted_id.to_string())
-        ]
-    ))
 }
